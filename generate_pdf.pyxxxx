@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""ORCHIDACEAE PDF generator.
+Concept: Renato Taboas Hidalgo. Code: Claude (Anthropic)."""
+
+import argparse, json
+from pathlib import Path
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import cm
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+from PIL import Image
+
+def generate(images_dir, output, specimens_path=None):
+    specimens = json.load(open(specimens_path)) if specimens_path and 
+Path(specimens_path).exists() else []
+    images = sorted(Path(images_dir).glob("*.jpg")) + 
+sorted(Path(images_dir).glob("*.png"))
+    w, h = A4
+    c = canvas.Canvas(output, pagesize=A4)
+    c.setTitle("ORCHIDACEAE")
+    c.setFont("Times-Roman", 11)
+    title_w = c.stringWidth("ORCHIDACEAE", "Times-Roman", 11)
+    c.drawString((w - title_w) / 2, h * 0.52, "ORCHIDACEAE")
+    c.showPage()
+    for i, img_path in enumerate(images):
+        sp = specimens[i] if i < len(specimens) else {"taxon": 
+img_path.stem}
+        margin = 2.5 * cm
+        img_h = h - 2 * margin - 1.8 * cm
+        with Image.open(img_path) as img:
+            iw, ih = img.size
+            r = min((w - 2*margin)/iw, img_h/ih)
+            dw, dh = iw*r, ih*r
+            x = (w - dw) / 2
+            y = margin + 1.8*cm + (img_h - dh)/2
+            c.drawImage(ImageReader(str(img_path)), x, y, dw, dh)
+        c.setFont("Times-Italic", 8)
+        c.drawString(margin, margin + 1.2*cm, sp.get("taxon",""))
+        c.setFont("Times-Roman", 7)
+        coords = sp.get("coordinates","") + "  " + sp.get("origin","")
+        cw = c.stringWidth(coords, "Times-Roman", 7)
+        c.setFillColorRGB(0.4,0.4,0.4)
+        c.drawString(w - margin -404: 
+Not 
+Found
