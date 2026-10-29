@@ -38,9 +38,9 @@ document.getElementById('go').onclick=async()=>{
  const out=document.getElementById('out');out.style.display='block';const email=document.getElementById('email').value;
  const brief=document.getElementById('brief').value.trim();if(!brief){out.innerHTML='<p class="err">Describe a shop first.</p>';return}
  out.innerHTML='<p><i>1/2 · The agent is reading the shop and choosing language, order and terms…</i></p>';
- try{const o=(await call({brief},30000)).order;let tot=0;
+ try{const r1=await call({brief},30000);const o=r1.order;if(!o)throw new Error('Unexpected answer: '+JSON.stringify(r1).slice(0,300));let tot=0;
   const rows=o.items.filter(i=>P[i.sku]&&i.quantity>0).map(i=>{const u=P[i.sku]*(1-o.discount_percent/100);tot+=u*i.quantity;return`<tr><td>${i.quantity} × ${N[i.sku]}</td><td>CHF ${(u*i.quantity).toFixed(2)}</td></tr>`}).join('');
-  out.innerHTML=`<p><b>${esc(o.shop_name)}</b> · ${esc(o.city)} · ${esc(o.language)} · wholesale −${o.discount_percent}%</p>
+  out.innerHTML=(o.demo?'<p class="err">Demo mode — the free AI quota is used up for today; this is a pre-written example.</p>':'')+`<p><b>${esc(o.shop_name)}</b> · ${esc(o.city)} · ${esc(o.language)} · wholesale −${o.discount_percent}%</p>
   <p style="color:#77726a"><i>${esc(o.reasoning)}</i></p>
   <label>Proposal</label><div class="mail"><b>${esc(o.subject)}</b>\n\n${esc(o.email_body)}</div>
   <label>PayPal invoice</label><table>${rows}<tr><td><b>Total</b></td><td><b>CHF ${tot.toFixed(2)}</b></td></tr></table><div id="inv"><p><i>2/2 · Issuing the PayPal invoice…</i></p></div>`;
