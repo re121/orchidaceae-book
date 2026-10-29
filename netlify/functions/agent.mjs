@@ -8,7 +8,14 @@ const CATALOG = {
 };
 
 async function gemini(prompt) {
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const models = [process.env.GEMINI_MODEL || 'gemini-3.8-flash', ...(process.env.GEMINI_FALLBACK || '').split(',').filter(Boolean)];
+  let last;
+  for (const model of models) for (let a = 0; a < 2; a++) {
+    try { return await geminiOnce(model, prompt); } catch (e) { last = e; if (!/demand|overload|503|unavailable|429/i.test(String(e))) throw e; await new Promise(r => setTimeout(r, 800)); }
+  }
+  throw last;
+}
+async function geminiOnce(model, prompt) {
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }],
@@ -49,7 +56,12 @@ async function ppInvoice(order, email, note) {
 
 export default async (req) => {
   try {
-    const { brief, email } = await req.json();
+    const body = await req.json();
+    if (body.order) {
+      const inv = await ppInvoice(body.order, body.email || 'sb-o4361i53529575@personal.example.com', body.order.subject);
+      return Response.json({ invoice: inv });
+    }
+    const { brief } = body;
     const prompt = `You are the distribution assistant of Re1 (Renato Taboas Hidalgo), an independent photographer in Basel, Switzerland.
 His project ORCHIDACEAE: photographs of 17 tropical orchid species shot under glass at the Basel Botanical Garden; a small hardcover photobook (ISBN 978-3-9075-1032-2), a digital edition and a series of 70 postcards.
 Catalogue (retail CHF): book 26, ebook 12, set70 79, postcard 2.
@@ -58,7 +70,6 @@ Write a short, warm, specific proposal email IN THE VENUE'S LANGUAGE (max 160 wo
 Return JSON: {"shop_name": str, "city": str, "language": str, "subject": str, "email_body": str, "discount_percent": number, "items": [{"sku": "book"|"ebook"|"set70"|"postcard", "quantity": int}], "reasoning": str (one sentence in English on why this order)}.
 Venue: ${brief}`;
     const order = await gemini(prompt);
-    const inv = await ppInvoice(order, email || 'sb-o4361i53529575@personal.example.com', order.subject);
-    return Response.json({ order, invoice: inv });
+    return Response.json({ order });
   } catch (e) { return Response.json({ error: String(e.message || e) }, { status: 500 }); }
 };
