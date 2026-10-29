@@ -1,0 +1,43 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ORCHIDACEAE — Distribution agent</title>
+<style>
+:root{--ink:#1d1b18;--mut:#77726a;--acc:#8a2d5e;--line:#ebe8e2}
+*{box-sizing:border-box}body{margin:0;background:#fff;color:var(--ink);font:16px/1.55 Georgia,serif}
+main{max-width:720px;margin:0 auto;padding:48px 16px 80px}
+h1{font-weight:400;letter-spacing:.3em;font-size:clamp(22px,4vw,34px);text-align:center;margin:0}
+.sub{text-align:center;color:var(--mut);font-style:italic;margin:8px 0 36px}
+label{display:block;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin:18px 0 6px}
+textarea,input{width:100%;font:inherit;border:1px solid var(--line);padding:12px}
+button{font:inherit;border:1px solid var(--ink);background:var(--ink);color:#fff;padding:10px 18px;margin-top:18px;cursor:pointer}
+.ex{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.ex span{font-size:13px;border:1px solid var(--line);padding:4px 10px;cursor:pointer;color:var(--mut)}
+#out{margin-top:36px;border-top:1px solid var(--line);padding-top:24px;display:none}
+.mail{white-space:pre-wrap;background:#faf9f6;border:1px solid var(--line);padding:18px}
+table{width:100%;border-collapse:collapse;margin:12px 0}td{padding:4px 0;border-bottom:1px solid var(--line)}td:last-child{text-align:right}
+a.pay{display:inline-block;margin-top:12px;background:#ffc439;color:#111;padding:10px 18px;text-decoration:none;font-family:Arial,sans-serif;font-weight:bold}
+.err{color:var(--acc)}nav{text-align:center;margin-bottom:28px;font-size:14px}nav a{color:var(--mut)}
+</style></head><body><main>
+<nav><a href="/">Shop</a> · <b>Distribution agent</b></nav>
+<h1>ORCHIDACEAE</h1><p class="sub">An AI agent that turns a shop into a consignment partner — proposal + PayPal invoice in one step</p>
+<label>Describe the shop</label>
+<textarea id="brief" rows="3" placeholder="e.g. Independent photobook shop in Berlin-Mitte, also sells prints"></textarea>
+<div class="ex"><span>Photobook shop in Berlin</span><span>Museum shop of the botanical garden in Bogotá</span><span>Florist in Lyon with a small gift corner</span><span>Orchid nursery in Lucerne</span></div>
+<label>Shop email (invoice recipient)</label>
+<input id="email" value="sb-o4361i53529575@personal.example.com">
+<button id="go">Prepare proposal + invoice</button>
+<div id="out"></div>
+</main><script>
+document.querySelectorAll('.ex span').forEach(s=>s.onclick=()=>document.getElementById('brief').value=s.textContent);
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const P={book:26,ebook:12,set70:79,postcard:2},N={book:'Printed book',ebook:'Digital edition',set70:'Postcard series (70)',postcard:'Single postcard'};
+document.getElementById('go').onclick=async()=>{
+ const out=document.getElementById('out');out.style.display='block';out.innerHTML='<p><i>The agent is reading the shop, choosing language, order and terms, and issuing the PayPal invoice…</i></p>';
+ try{const r=await fetch('/.netlify/functions/agent',{method:'POST',body:JSON.stringify({brief:document.getElementById('brief').value,email:document.getElementById('email').value})});
+  const j=await r.json();if(j.error)throw new Error(j.error);const o=j.order;let tot=0;
+  const rows=o.items.filter(i=>P[i.sku]&&i.quantity>0).map(i=>{const u=P[i.sku]*(1-o.discount_percent/100);tot+=u*i.quantity;return`<tr><td>${i.quantity} × ${N[i.sku]}</td><td>CHF ${(u*i.quantity).toFixed(2)}</td></tr>`}).join('');
+  out.innerHTML=`<p><b>${esc(o.shop_name)}</b> · ${esc(o.city)} · ${esc(o.language)} · wholesale −${o.discount_percent}%</p>
+  <p style="color:#77726a"><i>${esc(o.reasoning)}</i></p>
+  <label>Proposal</label><div class="mail"><b>${esc(o.subject)}</b>\n\n${esc(o.email_body)}</div>
+  <label>PayPal invoice ${esc(j.invoice.id)}</label><table>${rows}<tr><td><b>Total</b></td><td><b>CHF ${tot.toFixed(2)}</b></td></tr></table>
+  <a class="pay" href="${j.invoice.pay_url}" target="_blank">Open PayPal invoice ↗</a>`;
+ }catch(e){out.innerHTML='<p class="err">'+esc(e.message)+'</p>'}};
+</script></body></html>

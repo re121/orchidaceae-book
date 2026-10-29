@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ORCHIDACEAE — Re1</title>
+<style>
+:root{--ink:#1d1b18;--mut:#77726a;--acc:#8a2d5e;--line:#ebe8e2}
+*{box-sizing:border-box}body{margin:0;background:#fff;color:var(--ink);font:16px/1.55 Georgia,'Times New Roman',serif}
+header{padding:56px 16px 8px;text-align:center}h1{font-weight:400;letter-spacing:.4em;margin:0;font-size:clamp(26px,5.5vw,48px)}
+header p{color:var(--mut);margin:10px 0 0;font-style:italic}
+main{max-width:1080px;margin:0 auto;padding:0 16px 80px}
+h2{font-weight:400;letter-spacing:.15em;text-transform:uppercase;font-size:14px;color:var(--mut);margin:56px 0 18px;text-align:center}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:28px}
+.card{display:flex;flex-direction:column;gap:6px}
+.card .im{aspect-ratio:3/4;display:grid;place-items:center;overflow:hidden}
+.card img{max-width:88%;max-height:92%;object-fit:contain;transition:transform .5s}
+.card:hover img{transform:scale(1.04)}
+.card h3{margin:6px 0 0;font-weight:400;font-size:18px}.d{color:var(--mut);font-size:14px}.price{color:var(--acc)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:18px}
+.pc{text-align:center;cursor:pointer}.pc .im{height:200px;display:grid;place-items:center}.pc img{max-width:85%;max-height:180px;object-fit:contain}
+.pc small{color:var(--mut)}
+button{font:inherit;border:1px solid var(--ink);background:none;padding:8px 14px;cursor:pointer;margin-top:auto}
+button:hover{background:var(--ink);color:#fff}
+#cart{margin-top:56px;border-top:1px solid var(--line);padding-top:24px;max-width:560px;margin-left:auto;margin-right:auto}
+#cart li{display:flex;justify-content:space-between;gap:12px;padding:3px 0}
+#cart li button{padding:0 8px;margin:0 0 0 8px;font-size:13px}
+#pp-buttons{margin-top:16px}#msg{margin-top:12px;color:var(--acc)}
+footer{text-align:center;color:var(--mut);font-size:13px;padding:24px}
+</style></head><body>
+<nav style="text-align:center;padding-top:20px;font-size:14px"><b>Shop</b> · <a href="/agent.html" style="color:#77726a">Distribution agent</a></nav><header style="padding-top:28px"><h1>ORCHIDACEAE</h1><p>Tropical orchids photographed under glass · Re1 · Basel</p></header>
+<main>
+<h2>Editions</h2><div class="grid" id="grid"></div>
+<h2>Single postcards · CHF 2</h2><div class="cards" id="cards"></div>
+<section id="cart"><h2 style="margin-top:0">Your order</h2><ul id="items" style="list-style:none;padding:0;margin:0"></ul>
+<p><b>Total: CHF <span id="total">0.00</span></b></p><div id="pp-buttons"></div><div id="msg"></div></section>
+</main>
+<footer>Payments run in PayPal sandbox mode (test only). © 2026 Renato Taboas Hidalgo</footer>
+<script>
+const PRODUCTS=[
+ {id:'book',name:'ORCHIDACEAE — printed book',desc:'17 species · hardcover · ISBN 978-3-9075-1032-2',price:26,img:'img/paphio.jpg'},
+ {id:'ebook',name:'ORCHIDACEAE — digital edition',desc:'PDF at print resolution',price:12,img:'img/cattleya.jpg'},
+ {id:'set70',name:'The complete postcard series',desc:'70 postcards',price:79,img:'img/grid1.jpg'}];
+const NAMES=['Catasetum macroglossum','Oncidium sphacelatum','Dracula chestertonii','Gongora rufescens','Masdevallia goliath','Bulbophyllum echinolabium','Paphiopedilum stonei','Cattleya portia'];
+const SINGLES=['green','yellow','dracula','stanhopea','loop','bulbo','paphio','cattleya'].map((k,i)=>({id:'pc-'+k,name:NAMES[i],price:2,img:'img/'+k+'.jpg'}));
+const ALL=[...PRODUCTS,...SINGLES];const cart={};
+const grid=document.getElementById('grid');
+PRODUCTS.forEach(p=>{const d=document.createElement('div');d.className='card';
+ d.innerHTML=`<div class="im"><img src="${p.img}" alt="${p.name}" loading="lazy"></div><h3>${p.name}</h3><div class="d">${p.desc}</div><div class="price">CHF ${p.price.toFixed(2)}</div><button>Add to order</button>`;
+ d.querySelector('button').onclick=()=>add(p.id);grid.appendChild(d)});
+const cards=document.getElementById('cards');
+SINGLES.forEach(p=>{const d=document.createElement('div');d.className='pc';
+ d.innerHTML=`<div class="im"><img src="${p.img}" alt="${p.name}" loading="lazy"></div><small><i>${p.name}</i><br>+ add</small>`;d.onclick=()=>add(p.id);cards.appendChild(d)});
+function add(id){cart[id]=(cart[id]||0)+1;render();document.getElementById('cart').scrollIntoView({behavior:'smooth',block:'nearest'})}
+function total(){return ALL.reduce((s,p)=>s+(cart[p.id]||0)*p.price,0)}
+function render(){const ul=document.getElementById('items');ul.innerHTML='';
+ ALL.filter(p=>cart[p.id]).forEach(p=>{const li=document.createElement('li');li.innerHTML=`<span>${cart[p.id]} × ${p.name}</span><span>CHF ${(cart[p.id]*p.price).toFixed(2)}<button>−</button></span>`;
+ li.querySelector('button').onclick=()=>{cart[p.id]--;if(!cart[p.id])delete cart[p.id];render()};ul.appendChild(li)});
+ document.getElementById('total').textContent=total().toFixed(2)}
+render();
+window.onerror=(m)=>{document.getElementById('msg').textContent='Error: '+m};
+const sdk=document.createElement('script');
+sdk.src='https://www.paypal.com/sdk/js?client-id=AZHxxrYMdM2QhXEMo-LLs3nVSXa3C9C1ha50B8b1A3hGheXje8SSVvR4cQClkW-2Cl7efUDeVbbWy6jH&currency=CHF&components=buttons';
+sdk.setAttribute('data-namespace','paypalSDK');
+sdk.onerror=()=>{document.getElementById('msg').textContent='PayPal could not load (blocked by the browser or network).'};
+sdk.onload=()=>{
+ paypalSDK.Buttons({
+  onClick:(d,a)=>{if(!total()){document.getElementById('msg').textContent='Add something to your order first.';return a.reject()}},
+  createOrder:(d,a)=>a.order.create({purchase_units:[{amount:{currency_code:'CHF',value:total().toFixed(2),breakdown:{item_total:{currency_code:'CHF',value:total().toFixed(2)}}},
+   items:ALL.filter(p=>cart[p.id]).map(p=>({name:p.name,quantity:String(cart[p.id]),unit_amount:{currency_code:'CHF',value:p.price.toFixed(2)}})),description:'ORCHIDACEAE · Re1'}]}),
+  onApprove:(d,a)=>a.order.capture().then(o=>{document.getElementById('msg').textContent='Thank you, '+o.payer.name.given_name+'! Order '+o.id+' is paid (sandbox).';Object.keys(cart).forEach(k=>delete cart[k]);render()}),
+  onError:(e)=>{document.getElementById('msg').textContent='PayPal error: '+e}
+ }).render('#pp-buttons');
+};
+document.body.appendChild(sdk);
+</script>
+</body></html>
