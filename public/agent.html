@@ -29,15 +29,23 @@ a.pay{display:inline-block;margin-top:12px;background:#ffc439;color:#111;padding
 document.querySelectorAll('.ex span').forEach(s=>s.onclick=()=>document.getElementById('brief').value=s.textContent);
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const P={book:26,ebook:12,set70:79,postcard:2},N={book:'Printed book',ebook:'Digital edition',set70:'Postcard series (70)',postcard:'Single postcard'};
+async function call(payload,ms){const c=new AbortController();const tm=setTimeout(()=>c.abort(),ms);
+ try{const r=await fetch('/.netlify/functions/agent',{method:'POST',body:JSON.stringify(payload),signal:c.signal});
+  const txt=await r.text();let j;try{j=JSON.parse(txt)}catch{throw new Error('Server error '+r.status+(r.status==502||r.status==504?' (time-out — please try again)':''))}
+  if(j.error)throw new Error(j.error);return j}
+ catch(e){if(e.name==='AbortError')throw new Error('No answer after '+ms/1000+' s — please try again.');throw e}finally{clearTimeout(tm)}}
 document.getElementById('go').onclick=async()=>{
- const out=document.getElementById('out');out.style.display='block';out.innerHTML='<p><i>The agent is reading the shop, choosing language, order and terms, and issuing the PayPal invoice…</i></p>';
- try{const r=await fetch('/.netlify/functions/agent',{method:'POST',body:JSON.stringify({brief:document.getElementById('brief').value,email:document.getElementById('email').value})});
-  const j=await r.json();if(j.error)throw new Error(j.error);const o=j.order;let tot=0;
+ const out=document.getElementById('out');out.style.display='block';const email=document.getElementById('email').value;
+ const brief=document.getElementById('brief').value.trim();if(!brief){out.innerHTML='<p class="err">Describe a shop first.</p>';return}
+ out.innerHTML='<p><i>1/2 · The agent is reading the shop and choosing language, order and terms…</i></p>';
+ try{const o=(await call({brief},30000)).order;let tot=0;
   const rows=o.items.filter(i=>P[i.sku]&&i.quantity>0).map(i=>{const u=P[i.sku]*(1-o.discount_percent/100);tot+=u*i.quantity;return`<tr><td>${i.quantity} × ${N[i.sku]}</td><td>CHF ${(u*i.quantity).toFixed(2)}</td></tr>`}).join('');
   out.innerHTML=`<p><b>${esc(o.shop_name)}</b> · ${esc(o.city)} · ${esc(o.language)} · wholesale −${o.discount_percent}%</p>
   <p style="color:#77726a"><i>${esc(o.reasoning)}</i></p>
   <label>Proposal</label><div class="mail"><b>${esc(o.subject)}</b>\n\n${esc(o.email_body)}</div>
-  <label>PayPal invoice ${esc(j.invoice.id)}</label><table>${rows}<tr><td><b>Total</b></td><td><b>CHF ${tot.toFixed(2)}</b></td></tr></table>
-  <a class="pay" href="${j.invoice.pay_url}" target="_blank">Open PayPal invoice ↗</a>`;
+  <label>PayPal invoice</label><table>${rows}<tr><td><b>Total</b></td><td><b>CHF ${tot.toFixed(2)}</b></td></tr></table><div id="inv"><p><i>2/2 · Issuing the PayPal invoice…</i></p></div>`;
+  const inv=document.getElementById('inv');
+  try{const j=await call({order:o,email},30000);inv.innerHTML=`<p>Invoice <b>${esc(j.invoice.id)}</b> created in PayPal (sandbox).</p><a class="pay" href="${j.invoice.pay_url}" target="_blank">Open PayPal invoice ↗</a>`}
+  catch(e){inv.innerHTML='<p class="err">PayPal: '+esc(e.message)+'</p>'}
  }catch(e){out.innerHTML='<p class="err">'+esc(e.message)+'</p>'}};
 </script></body></html>
