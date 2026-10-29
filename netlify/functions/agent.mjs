@@ -8,12 +8,21 @@ const CATALOG = {
 };
 
 async function gemini(prompt) {
-  const models = [process.env.GEMINI_MODEL || 'gemini-3.8-flash', ...(process.env.GEMINI_FALLBACK || '').split(',').filter(Boolean)];
-  let last;
-  for (const model of models) for (let a = 0; a < 2; a++) {
-    try { return await geminiOnce(model, prompt); } catch (e) { last = e; if (!/demand|overload|503|unavailable|429/i.test(String(e))) throw e; await new Promise(r => setTimeout(r, 800)); }
+  const models = [process.env.GEMINI_MODEL || 'gemini-3.8-flash', ...(process.env.GEMINI_FALLBACK || 'gemini-flash-lite-latest,gemini-3.8-flash-lite,gemini-flash-latest').split(',').map(x => x.trim()).filter(Boolean)];
+  const errs = [];
+  for (const model of [...new Set(models)]) {
+    try { const o = await geminiOnce(model, prompt); o._model = model; return o; }
+    catch (e) { errs.push(model + ': ' + String(e.message || e).slice(0, 120)); }
   }
-  throw last;
+  const err = new Error(errs.join(' | ')); err.allFailed = true; throw err;
+}
+// Demo answer used only if every model is out of quota, clearly labelled in the UI.
+function demoOrder(brief) {
+  return { demo: true, shop_name: 'Photobook shop (demo)', city: 'Berlin', language: 'German', discount_percent: 40,
+    subject: 'ORCHIDACEAE – Fotobuch und Postkarten in Kommission',
+    email_body: 'Liebes Team,\n\nich bin Renato Taboas Hidalgo (Re1), Fotograf in Basel. ORCHIDACEAE zeigt 17 tropische Orchideenarten, fotografiert unter Glas im Botanischen Garten Basel – als kleines Hardcover-Fotobuch und als Serie von 70 Postkarten.\n\nIch würde Ihnen gerne eine kleine Erstbestellung in Kommission anbieten: 5 Bücher und 40 Postkarten, mit 40 % Händlerrabatt. Die PayPal-Rechnung liegt bei und kann online bezahlt werden.\n\nHerzliche Grüsse\nRenato Taboas Hidalgo (Re1), Basel',
+    items: [{ sku: 'book', quantity: 5 }, { sku: 'postcard', quantity: 40 }],
+    reasoning: 'Demo answer shown because the free AI quota is exhausted for today (brief: ' + String(brief).slice(0, 60) + ').' };
 }
 async function geminiOnce(model, prompt) {
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
@@ -23,7 +32,14 @@ async function geminiOnce(model, prompt) {
   });
   const j = await r.json();
   if (!r.ok) throw new Error('Gemini: ' + (j.error?.message || r.status));
-  return JSON.parse(j.candidates[0].content.parts[0].text);
+  const parts = j.candidates?.[0]?.content?.parts || [];
+  const txt = parts.filter(p => p.text && !p.thought).map(p => p.text).join('').trim();
+  if (!txt) throw new Error('Gemini returned no text: ' + JSON.stringify(j).slice(0, 300));
+  let o = JSON.parse(txt.replace(/^```(json)?|```$/g, ''));
+  if (Array.isArray(o)) o = o[0];
+  if (o && !o.items) o = o.order || o.proposal || Object.values(o).find(v => v && v.items) || o;
+  if (!o || !Array.isArray(o.items)) throw new Error('Unexpected AI answer: ' + txt.slice(0, 300));
+  return o;
 }
 
 async function ppToken() {
@@ -69,7 +85,9 @@ The user describes a shop/venue. Decide: the language of the venue's city, a sen
 Write a short, warm, specific proposal email IN THE VENUE'S LANGUAGE (max 160 words), signed "Renato Taboas Hidalgo (Re1), Basel", mentioning that a PayPal invoice for the opening order is attached and can be paid online.
 Return JSON: {"shop_name": str, "city": str, "language": str, "subject": str, "email_body": str, "discount_percent": number, "items": [{"sku": "book"|"ebook"|"set70"|"postcard", "quantity": int}], "reasoning": str (one sentence in English on why this order)}.
 Venue: ${brief}`;
-    const order = await gemini(prompt);
+    let order;
+    try { order = await gemini(prompt); }
+    catch (e) { if (e.allFailed && /quota|exceeded|429|demand|overload/i.test(e.message)) order = demoOrder(brief); else throw e; }
     return Response.json({ order });
   } catch (e) { return Response.json({ error: String(e.message || e) }, { status: 500 }); }
 };
