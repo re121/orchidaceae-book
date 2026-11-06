@@ -10,8 +10,11 @@ const CATALOG = {
 async function gemini(prompt) {
   const models = [process.env.GEMINI_MODEL || 'gemini-3.8-flash', ...(process.env.GEMINI_FALLBACK || 'gemini-flash-lite-latest,gemini-3.8-flash-lite,gemini-flash-latest').split(',').map(x => x.trim()).filter(Boolean)];
   const errs = [];
+  const deadline = Date.now() + 20000; // answer the browser well before its 30 s limit
   for (const model of [...new Set(models)]) {
-    try { const o = await geminiOnce(model, prompt); o._model = model; return o; }
+    const left = deadline - Date.now();
+    if (left < 2000) { errs.push('time budget used up'); break; }
+    try { const o = await geminiOnce(model, prompt, Math.min(left, 12000)); o._model = model; return o; }
     catch (e) { errs.push(model + ': ' + String(e.message || e).slice(0, 120)); }
   }
   const err = new Error(errs.join(' | ')); err.allFailed = true; throw err;
@@ -22,11 +25,11 @@ function demoOrder(brief) {
     subject: 'ORCHIDACEAE – Fotobuch und Postkarten in Kommission',
     email_body: 'Liebes Team,\n\nich bin Renato Taboas Hidalgo (Re1), Fotograf in Basel. ORCHIDACEAE zeigt 17 tropische Orchideenarten, fotografiert unter Glas im Botanischen Garten Basel – als kleines Hardcover-Fotobuch und als Serie von 70 Postkarten.\n\nIch würde Ihnen gerne eine kleine Erstbestellung in Kommission anbieten: 5 Bücher und 40 Postkarten, mit 40 % Händlerrabatt. Die PayPal-Rechnung liegt bei und kann online bezahlt werden.\n\nHerzliche Grüsse\nRenato Taboas Hidalgo (Re1), Basel',
     items: [{ sku: 'book', quantity: 5 }, { sku: 'postcard', quantity: 40 }],
-    reasoning: 'Demo answer shown because the free AI quota is exhausted for today (brief: ' + String(brief).slice(0, 60) + ').' };
+    reasoning: 'Demo answer shown because the AI did not answer in time or is out of quota (brief: ' + String(brief).slice(0, 60) + ').' };
 }
-async function geminiOnce(model, prompt) {
+async function geminiOnce(model, prompt, ms = 12000) {
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-    method: 'POST', headers: { 'content-type': 'application/json' },
+    method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(ms),
     body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: { responseMimeType: 'application/json', temperature: 0.6 } }),
   });
@@ -87,7 +90,7 @@ Return JSON: {"shop_name": str, "city": str, "language": str, "subject": str, "e
 Venue: ${brief}`;
     let order;
     try { order = await gemini(prompt); }
-    catch (e) { if (e.allFailed && /quota|exceeded|429|demand|overload/i.test(e.message)) order = demoOrder(brief); else throw e; }
+    catch (e) { if (e.allFailed) { order = demoOrder(brief); order.reasoning += ' AI error: ' + e.message.slice(0, 200); } else throw e; }
     return Response.json({ order });
   } catch (e) { return Response.json({ error: String(e.message || e) }, { status: 500 }); }
 };
